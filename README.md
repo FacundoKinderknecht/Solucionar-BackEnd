@@ -10,7 +10,7 @@ Abrir la terminal y correr el siguiente comando
 > npm install
 
 
-## Run the application
+## Correr la aplicacion
 
 Abrir la terminal y correr el siguiente comando
 
@@ -19,9 +19,9 @@ Abrir la terminal y correr el siguiente comando
 
 ## Pylint
 
-Este repositorio usa Eslint para mantener el codigo limpio y organizado
+Este repositorio usa Pylint para mantener el codigo limpio y organizado
 
-Se necesita usar la extension Eslint en Visual Studio Code y utilizar el archivo de configuracion dado
+Se necesita usar la extension Pylint en Visual Studio Code y utilizar el archivo de configuracion dado
 
 Podes encontrar al extension [aqui](https://marketplace.visualstudio.com/items?itemName=ms-python.pylint)
 
