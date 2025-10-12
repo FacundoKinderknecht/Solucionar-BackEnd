@@ -4,14 +4,7 @@ from sqlmodel import SQLModel, Field, Session
 import contextlib
 
 from database import engine, get_session, create_db_and_tables
-
-
-class ServicioBase(SQLModel):
-    name: str = Field(index=True)
-    description: Union[str, None] = None
-
-class Servicio(ServicioBase, table=True):
-    id: int = Field(default=None, primary_key=True)
+from schema.servicios import Servicio
 
 
 @contextlib.asynccontextmanager
