@@ -1,3 +1,6 @@
+# ------------------------------------------------------------
+# Modelos de Servicios (SQLModel).
+# ------------------------------------------------------------
 from sqlmodel import SQLModel, Field
 from typing import Union
 
