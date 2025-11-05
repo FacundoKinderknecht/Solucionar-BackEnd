@@ -15,6 +15,8 @@ from database import get_session, create_db_and_tables
 from core.config import settings
 from routers.auth import router as auth_router
 from routers.servicios import router as servicios_router
+from routers.providers import router as providers_router
+from routers.users import router as users_router
 
 # Dependencia tipada
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -39,6 +41,8 @@ app.add_middleware(
 # Routers
 app.include_router(auth_router)
 app.include_router(servicios_router)
+app.include_router(providers_router)
+app.include_router(users_router)
 
 # Healthcheck / demo
 @app.get("/")

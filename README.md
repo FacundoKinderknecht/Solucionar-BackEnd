@@ -1,39 +1,50 @@
-# Solucion.ar
+# Solucionar - BackEnd
 
-Esta es una aplicacion para el backend de la aplicacion Solucion.ar Python
+Backend de la aplicación Solucionar hecho con FastAPI + SQLModel.
 
+## Requisitos
 
-## Installation
+- Python 3.11+ recomendado
+- PostgreSQL (variable `DATABASE_URL` configurada)
 
-Abrir la terminal y correr el siguiente comando
+## Configuración
 
-> npm install
+1. Crea un archivo `.env` en `Solucionar-BackEnd/` con al menos:
 
+```
+DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:PORT/DBNAME
+SECRET_KEY=super-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+```
 
-## Correr la aplicacion
+2. Instala dependencias:
 
-Abrir la terminal y correr el siguiente comando
+```
+pip install -r requirements.txt
+```
 
-> npm run dev
+3. Ejecuta el servidor de desarrollo:
 
+```
+python -m uvicorn main:app --reload
+```
 
-## Pylint
+La API creará tablas al iniciar y aplicará una micro-migración para asegurar la columna `users.full_name`.
 
-Este repositorio usa Pylint para mantener el codigo limpio y organizado
+## Endpoints clave
 
-Se necesita usar la extension Pylint en Visual Studio Code y utilizar el archivo de configuracion dado
+- `POST /auth/register` — Crea usuario (full_name, email, password, opcional phone/province/city)
+- `POST /auth/login` — OAuth2 Form (username=email, password) → devuelve access_token y datos del usuario
+- `GET  /auth/me` — Devuelve datos del usuario autenticado
+- `GET  /` — Healthcheck simple
 
-Podes encontrar al extension [aqui](https://marketplace.visualstudio.com/items?itemName=ms-python.pylint)
+## Librerías principales
 
-[Mas info sobre Pylint](https://pylint.readthedocs.io/en/stable/)
-
-## Important libraries used
-
-- Build
-  - [FastAPI](https://fastapi.tiangolo.com/)
-  - [uvicorn](https://www.uvicorn.org/)
-  - [pydantic](https://redux.js.org/)
-  - [sqlalchemy](https://www.sqlalchemy.org/)
-  - [psycopg](https://www.psycopg.org/)
-  - [python-jose](https://github.com/mpdavis/python-jose)
-  - [passlib](https://pypi.org/project/passlib/)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [SQLModel](https://sqlmodel.tiangolo.com/)
+- [SQLAlchemy](https://www.sqlalchemy.org/)
+- [psycopg2-binary](https://www.psycopg.org/docs/)
+- [python-jose](https://github.com/mpdavis/python-jose)
+- [passlib](https://pypi.org/project/passlib/)
+- [uvicorn](https://www.uvicorn.org/)
