@@ -36,3 +36,10 @@ SERVICE_AREA_CHOICES: list[str] = [
     "Rosario",
     "Córdoba Capital",
 ]
+
+class TipoArea(str, Enum):
+    CUSTOMER_LOCATION = "CUSTOMER_LOCATION"  # se realiza en dirección del cliente
+    PROVIDER_LOCATION = "PROVIDER_LOCATION"  # el cliente se acerca al proveedor
+    PRESENCIAL = "PRESENCIAL"  # en domicilio del cliente / lugar físico
+    REMOTO = "REMOTO"          # online
+    PERSONALIZADO = "PERSONALIZADO"  # texto libre en location_note
