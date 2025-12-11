@@ -9,6 +9,7 @@ from routers.auth import get_current_user
 from schema.users import User
 from schema.services import Category, Service, ServiceImage, ServiceSchedule
 from sqlmodel import SQLModel
+from datetime import date
 from database import get_session
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -67,6 +68,9 @@ class ServiceCreatePayload(SQLModel):
     location_note: Optional[str] = None
     price_to_agree: bool = False
     radius_km: Optional[float] = None
+    # Nuevos campos de disponibilidad
+    availability_start_date: Optional[date] = None
+    availability_end_date: Optional[date] = None
 
 @router.post("/", response_model=Service)
 @router.post("", response_model=Service)  # allow both /servicios and /servicios/ without redirect
@@ -86,6 +90,10 @@ def create_service(payload: ServiceCreatePayload, session: SessionDep, current: 
         raise HTTPException(status_code=400, detail="Duración inválida")
     if payload.area_type == TipoArea.PERSONALIZADO and not payload.location_note:
         raise HTTPException(status_code=400, detail="location_note requerido para PERSONALIZADO")
+    if payload.availability_start_date and payload.availability_end_date:
+        if payload.availability_start_date > payload.availability_end_date:
+            raise HTTPException(status_code=400, detail="La fecha de inicio de disponibilidad no puede ser posterior a la de fin.")
+
     cat = session.get(Category, payload.category_id)
     if not cat:
         raise HTTPException(status_code=400, detail="Categoría inválida")
@@ -101,6 +109,8 @@ def create_service(payload: ServiceCreatePayload, session: SessionDep, current: 
         location_note=payload.location_note,
         price_to_agree=payload.price_to_agree,
         radius_km=payload.radius_km,
+        availability_start_date=payload.availability_start_date,
+        availability_end_date=payload.availability_end_date,
     )
     svc = Service(**kwargs)
     session.add(svc)
@@ -148,6 +158,9 @@ class ServiceUpdatePayload(SQLModel):
     price_to_agree: Optional[bool] = None
     category_id: Optional[int] = None
     radius_km: Optional[float] = None
+    # Nuevos campos de disponibilidad
+    availability_start_date: Optional[date] = None
+    availability_end_date: Optional[date] = None
 
 @router.put("/{service_id}", response_model=Service)
 def update_service(service_id: int, payload: ServiceUpdatePayload, session: SessionDep, current: CurrentUser):
@@ -162,11 +175,17 @@ def update_service(service_id: int, payload: ServiceUpdatePayload, session: Sess
         raise HTTPException(status_code=400, detail="Duración inválida")
     if payload.area_type == TipoArea.PERSONALIZADO and payload.location_note is None:
         raise HTTPException(status_code=400, detail="location_note requerido para PERSONALIZADO")
+
+    # Validar fechas de disponibilidad
+    start_date = payload.availability_start_date if payload.availability_start_date is not None else svc.availability_start_date
+    end_date = payload.availability_end_date if payload.availability_end_date is not None else svc.availability_end_date
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(status_code=400, detail="La fecha de inicio de disponibilidad no puede ser posterior a la de fin.")
+
     # update fields
-    for field in ["title","description","price","currency","duration_min","area_type","location_note","price_to_agree","category_id","radius_km"]:
-        val = getattr(payload, field)
-        if val is not None:
-            setattr(svc, field, val)
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, val in update_data.items():
+        setattr(svc, field, val)
     session.add(svc)
     session.commit()
     session.refresh(svc)
@@ -240,4 +259,3 @@ def upsert_schedule(service_id: int, items: List[ServiceSchedule], session: Sess
 @router.get("/{service_id}/horarios", response_model=List[ServiceSchedule])
 def list_schedule(service_id: int, session: SessionDep):
     return session.exec(select(ServiceSchedule).where(ServiceSchedule.service_id == service_id).order_by(ServiceSchedule.weekday, ServiceSchedule.time_from)).all()
-

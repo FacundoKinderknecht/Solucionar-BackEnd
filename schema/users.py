@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 # models/user.py
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from core.enums import Role
+
+if TYPE_CHECKING:
+    from .services import Service
+    from .reservations import Reservation
+
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -19,4 +24,8 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
     role: Role = Field(default=Role.USER)
     created_at: datetime | None = Field(default_factory=datetime.utcnow)
+
     # Nota: relación inversa con ProviderProfile se gestiona desde ProviderProfile.user_id
+    # Relationships
+    services_provided: List["Service"] = Relationship(back_populates="provider")
+    reservations: List["Reservation"] = Relationship(back_populates="client")

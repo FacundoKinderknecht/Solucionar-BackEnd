@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional
-from datetime import datetime, time
-from sqlmodel import SQLModel, Field
+from typing import Optional, List, TYPE_CHECKING
+from datetime import datetime, time, date
+from sqlmodel import SQLModel, Field, Relationship
 from core.enums import TipoArea
+
+if TYPE_CHECKING:
+    from .users import User
+    from .reservations import Reservation
+
 
 
 class Category(SQLModel, table=True):
@@ -28,11 +33,18 @@ class Service(SQLModel, table=True):
     duration_min: int  # 0 = indefinido
     area_type: TipoArea = Field(default=TipoArea.CUSTOMER_LOCATION)
     radius_km: float | None = None
-    # Nuevos campos
     location_note: str | None = None  # texto libre: "Rosario zona sur", etc.
     price_to_agree: bool = Field(default=False)  # "Precio a convenir"
     active: bool = Field(default=True)
     created_at: datetime | None = Field(default_factory=datetime.utcnow)
+
+    # Nuevos campos de disponibilidad
+    availability_start_date: date | None = Field(default=None)
+    availability_end_date: date | None = Field(default=None)
+
+    # Relationships
+    provider: "User" = Relationship(back_populates="services_provided")
+    reservations: List["Reservation"] = Relationship(back_populates="service")
 
 
 class ServiceImage(SQLModel, table=True):
@@ -54,15 +66,3 @@ class ServiceSchedule(SQLModel, table=True):
     time_from: time
     time_to: time
     timezone: str = Field(default="America/Argentina/Buenos_Aires")
-# ------------------------------------------------------------
-# Modelos de Servicios (SQLModel).
-# ------------------------------------------------------------
-from sqlmodel import SQLModel, Field
-from typing import Union
-
-class ServicioBase(SQLModel):
-    name: str = Field(index=True)
-    description: Union[str, None] = None
-
-class Servicio(ServicioBase, table=True):
-    id: int = Field(default=None, primary_key=True)
