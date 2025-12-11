@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 from datetime import datetime, time, date
 from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy.orm import Mapped
 from core.enums import TipoArea
 
 if TYPE_CHECKING:
@@ -43,8 +44,8 @@ class Service(SQLModel, table=True):
     availability_end_date: date | None = Field(default=None)
 
     # Relationships
-    provider: "User" = Relationship(back_populates="services_provided")
-    reservations: List["Reservation"] = Relationship(back_populates="service")
+    provider: Mapped["User"] = Relationship(back_populates="services_provided")
+    reservations: Mapped[List["Reservation"]] = Relationship(back_populates="service")
 
 
 class ServiceImage(SQLModel, table=True):

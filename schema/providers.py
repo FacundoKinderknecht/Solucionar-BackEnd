@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# models/provider.py
 from typing import Optional
 from sqlmodel import SQLModel, Field, UniqueConstraint
 from core.enums import TaxStatus

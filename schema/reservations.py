@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from enum import Enum
 
 from sqlmodel import Field, SQLModel, Relationship
+from sqlalchemy.orm import Mapped
 
 if TYPE_CHECKING:
     from .services import Service
@@ -30,8 +31,8 @@ class Reservation(ReservationBase, table=True):
     created_at: datetime | None = Field(default_factory=datetime.utcnow)
 
     # Relationships
-    client: "User" = Relationship(back_populates="reservations")
-    service: "Service" = Relationship(back_populates="reservations")
+    client: Mapped[User] = Relationship(back_populates="reservations")
+    service: Mapped[Service] = Relationship(back_populates="reservations")
 
 # --- Schemas for API ---
 

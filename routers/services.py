@@ -15,7 +15,7 @@ from database import get_session
 SessionDep = Annotated[Session, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
-router = APIRouter(prefix="/servicios", tags=["servicios"])
+router = APIRouter(prefix="/services", tags=["services"])
 
 # ----------------------- Categorías -----------------------
 
@@ -73,7 +73,7 @@ class ServiceCreatePayload(SQLModel):
     availability_end_date: Optional[date] = None
 
 @router.post("/", response_model=Service)
-@router.post("", response_model=Service)  # allow both /servicios and /servicios/ without redirect
+@router.post("", response_model=Service)  # allow both /services and /services/ without redirect
 def create_service(payload: ServiceCreatePayload, session: SessionDep, current: CurrentUser):
     if current.role != Role.PROVIDER:
         raise HTTPException(status_code=403, detail="Solo proveedores")

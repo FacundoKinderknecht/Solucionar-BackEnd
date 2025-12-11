@@ -1,15 +1,13 @@
 from __future__ import annotations
-
-# models/user.py
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy.orm import Mapped
 from core.enums import Role
 
 if TYPE_CHECKING:
     from .services import Service
     from .reservations import Reservation
-
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -26,6 +24,7 @@ class User(SQLModel, table=True):
     created_at: datetime | None = Field(default_factory=datetime.utcnow)
 
     # Nota: relación inversa con ProviderProfile se gestiona desde ProviderProfile.user_id
+    
     # Relationships
-    services_provided: List["Service"] = Relationship(back_populates="provider")
-    reservations: List["Reservation"] = Relationship(back_populates="client")
+    services_provided: Mapped[List["Service"]] = Relationship(back_populates="provider")
+    reservations: Mapped[List["Reservation"]] = Relationship(back_populates="client")

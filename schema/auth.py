@@ -2,6 +2,7 @@
 # Esquemas Pydantic para autenticación (entrada/salida).
 # NO contienen endpoints ni lógica.
 # ------------------------------------------------------------
+from __future__ import annotations
 from pydantic import BaseModel, EmailStr
 from sqlmodel import SQLModel
 from typing import Optional
