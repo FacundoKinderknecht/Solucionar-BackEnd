@@ -1,10 +1,11 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 from enum import Enum
 
 from sqlmodel import Field, SQLModel, Relationship
-from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import relationship
+# use Annotated[...] with Relationship for SQLModel-friendly relationship metadata
 
 if TYPE_CHECKING:
     from .services import Service
@@ -31,8 +32,14 @@ class Reservation(ReservationBase, table=True):
     created_at: datetime | None = Field(default_factory=datetime.utcnow)
 
     # Relationships
-    client: Mapped[User] = Relationship(back_populates="reservations")
-    service: Mapped[Service] = Relationship(back_populates="reservations")
+    client: Annotated["User", Relationship(back_populates="reservations")] | None = Relationship(
+        back_populates="reservations",
+        sa_relationship=relationship("User", back_populates="reservations"),
+    )
+    service: Annotated["Service", Relationship(back_populates="reservations")] | None = Relationship(
+        back_populates="reservations",
+        sa_relationship=relationship("Service", back_populates="reservations"),
+    )
 
 # --- Schemas for API ---
 
