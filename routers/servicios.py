@@ -1,28 +1,243 @@
-from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from __future__ import annotations
 
+from typing import List, Optional, Annotated
+from fastapi import APIRouter, HTTPException, status, Depends, Query
+from sqlmodel import select, Session
+
+from core.enums import TipoArea, Role
+from routers.auth import get_current_user
+from schema.users import User
+from schema.services import Category, Service, ServiceImage, ServiceSchedule
+from sqlmodel import SQLModel
 from database import get_session
-from schema.servicios import Servicio
 
 SessionDep = Annotated[Session, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
-router = APIRouter()
+router = APIRouter(prefix="/servicios", tags=["servicios"])
 
-@router.get("/servicios/{servicio_id}")
-async def read_servicio(servicio_id: int, session: SessionDep):
-    servicio = session.get(Servicio, servicio_id)
-    if not servicio:
-        raise HTTPException(status_code=404, detail="Servicio not found")
-    return servicio
+# ----------------------- Categorías -----------------------
 
-@router.post("/servicios/")
-async def create_servicio(servicio: Servicio, session: SessionDep):
-    session.add(servicio)
+@router.post("/categorias", response_model=Category)
+def create_category(payload: Category, session: SessionDep, current: CurrentUser):
+    if current.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo ADMIN")
+    # slug uniqueness check
+    existing = session.exec(select(Category).where(Category.slug == payload.slug)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Slug ya existe")
+    session.add(payload)
     session.commit()
-    session.refresh(servicio)
-    return servicio
+    session.refresh(payload)
+    return payload
 
-@router.put("/servicios/{servicio_id}")
-async def update_servicio(servicio_id: int, servicio: Servicio):
-    return {"servicio_id": servicio_id, "servicio_name": servicio.name, "servicio_description": servicio.description}
+@router.get("/categorias", response_model=List[Category])
+def list_categories(session: SessionDep):
+    return session.exec(select(Category).order_by(Category.name)).all()
+
+@router.get("/categorias/{cat_id}", response_model=Category)
+def get_category(cat_id: int, session: SessionDep):
+    cat = session.get(Category, cat_id)
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    return cat
+
+@router.delete("/categorias/{cat_id}")
+def delete_category(cat_id: int, session: SessionDep, current: CurrentUser):
+    if current.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo ADMIN")
+    cat = session.get(Category, cat_id)
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    # TODO: decidir política (bloquear si hay servicios asociados)
+    session.delete(cat)
+    session.commit()
+    return {"status": "ok"}
+
+# ----------------------- Servicios -----------------------
+
+class ServiceCreatePayload(SQLModel):
+    category_id: int
+    title: str
+    description: str
+    price: float | None = None
+    currency: str = "ARS"
+    duration_min: int = 0  # 0 = indefinido
+    area_type: TipoArea = TipoArea.PRESENCIAL
+    location_note: Optional[str] = None
+    price_to_agree: bool = False
+    radius_km: Optional[float] = None
+
+@router.post("/", response_model=Service)
+@router.post("", response_model=Service)  # allow both /servicios and /servicios/ without redirect
+def create_service(payload: ServiceCreatePayload, session: SessionDep, current: CurrentUser):
+    if current.role != Role.PROVIDER:
+        raise HTTPException(status_code=403, detail="Solo proveedores")
+    # Validaciones nuevas (permiten precio a convenir y duración indefinida = 0)
+    if not payload.title.strip():
+        raise HTTPException(status_code=400, detail="Título requerido")
+    if not payload.description.strip():
+        raise HTTPException(status_code=400, detail="Descripción requerida")
+    if payload.price is None and not payload.price_to_agree:
+        raise HTTPException(status_code=400, detail="Precio requerido salvo 'a convenir'")
+    if payload.price is not None and payload.price <= 0:
+        raise HTTPException(status_code=400, detail="Precio debe ser > 0")
+    if payload.duration_min < 0:
+        raise HTTPException(status_code=400, detail="Duración inválida")
+    if payload.area_type == TipoArea.PERSONALIZADO and not payload.location_note:
+        raise HTTPException(status_code=400, detail="location_note requerido para PERSONALIZADO")
+    cat = session.get(Category, payload.category_id)
+    if not cat:
+        raise HTTPException(status_code=400, detail="Categoría inválida")
+    kwargs = dict(
+        provider_id=current.id,
+        category_id=payload.category_id,
+        title=payload.title.strip(),
+        description=payload.description.strip(),
+        price=(payload.price if not payload.price_to_agree else 0),
+        currency=payload.currency,
+        duration_min=payload.duration_min,
+        area_type=payload.area_type,
+        location_note=payload.location_note,
+        price_to_agree=payload.price_to_agree,
+        radius_km=payload.radius_km,
+    )
+    svc = Service(**kwargs)
+    session.add(svc)
+    session.commit()
+    session.refresh(svc)
+    return svc
+
+@router.get("/", response_model=List[Service])
+@router.get("", response_model=List[Service])  # allow without trailing slash
+def list_services(session: SessionDep, q: Optional[str] = Query(None), category_id: Optional[int] = None):
+    stmt = select(Service).where(Service.active == True)  # noqa: E712
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(Service.title.ilike(like))
+    if category_id:
+        stmt = stmt.where(Service.category_id == category_id)
+    return session.exec(stmt.order_by(Service.created_at.desc())).all()
+
+@router.get("/mios", response_model=List[Service])
+def list_my_services(session: SessionDep, current: CurrentUser, active: Optional[bool] = None):
+    if current.role not in (Role.PROVIDER, Role.ADMIN):
+        raise HTTPException(status_code=403, detail="Solo proveedores o admin")
+    stmt = select(Service)
+    if current.role != Role.ADMIN:
+        stmt = stmt.where(Service.provider_id == current.id)
+    if active is not None:
+        stmt = stmt.where(Service.active == active)
+    return session.exec(stmt.order_by(Service.created_at.desc())).all()
+
+@router.get("/{service_id}", response_model=Service)
+def get_service(service_id: int, session: SessionDep):
+    svc = session.get(Service, service_id)
+    if not svc or not svc.active:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    return svc
+
+class ServiceUpdatePayload(SQLModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    duration_min: Optional[int] = None
+    area_type: Optional[TipoArea] = None
+    location_note: Optional[str] = None
+    price_to_agree: Optional[bool] = None
+    category_id: Optional[int] = None
+    radius_km: Optional[float] = None
+
+@router.put("/{service_id}", response_model=Service)
+def update_service(service_id: int, payload: ServiceUpdatePayload, session: SessionDep, current: CurrentUser):
+    svc = session.get(Service, service_id)
+    if not svc or not svc.active:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if current.role != Role.ADMIN and svc.provider_id != current.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    if payload.price is not None and payload.price <= 0:
+        raise HTTPException(status_code=400, detail="Precio debe ser > 0")
+    if payload.duration_min is not None and payload.duration_min < 0:
+        raise HTTPException(status_code=400, detail="Duración inválida")
+    if payload.area_type == TipoArea.PERSONALIZADO and payload.location_note is None:
+        raise HTTPException(status_code=400, detail="location_note requerido para PERSONALIZADO")
+    # update fields
+    for field in ["title","description","price","currency","duration_min","area_type","location_note","price_to_agree","category_id","radius_km"]:
+        val = getattr(payload, field)
+        if val is not None:
+            setattr(svc, field, val)
+    session.add(svc)
+    session.commit()
+    session.refresh(svc)
+    return svc
+
+@router.delete("/{service_id}")
+def deactivate_service(service_id: int, session: SessionDep, current: CurrentUser):
+    svc = session.get(Service, service_id)
+    if not svc or not svc.active:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if current.role != Role.ADMIN and svc.provider_id != current.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    svc.active = False
+    session.add(svc)
+    session.commit()
+    return {"status": "ok"}
+
+# ----------------------- Imágenes -----------------------
+
+@router.post("/{service_id}/imagenes", response_model=List[ServiceImage])
+def upsert_images(service_id: int, images: List[ServiceImage], session: SessionDep, current: CurrentUser):
+    svc = session.get(Service, service_id)
+    if not svc or not svc.active:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if current.role != Role.ADMIN and svc.provider_id != current.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    # remove old
+    old = session.exec(select(ServiceImage).where(ServiceImage.service_id == service_id)).all()
+    for o in old:
+        session.delete(o)
+    cover_count = sum(1 for i in images if i.is_cover)
+    if cover_count > 1:
+        raise HTTPException(status_code=400, detail="Solo una imagen de portada")
+    for img in images:
+        img.id = None
+        img.service_id = service_id
+        session.add(img)
+    session.commit()
+    return session.exec(select(ServiceImage).where(ServiceImage.service_id == service_id).order_by(ServiceImage.sort_order)).all()
+
+@router.get("/{service_id}/imagenes", response_model=List[ServiceImage])
+def list_images(service_id: int, session: SessionDep):
+    return session.exec(select(ServiceImage).where(ServiceImage.service_id == service_id).order_by(ServiceImage.sort_order)).all()
+
+# ----------------------- Horarios -----------------------
+
+@router.post("/{service_id}/horarios", response_model=List[ServiceSchedule])
+def upsert_schedule(service_id: int, items: List[ServiceSchedule], session: SessionDep, current: CurrentUser):
+    svc = session.get(Service, service_id)
+    if not svc or not svc.active:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if current.role != Role.ADMIN and svc.provider_id != current.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    # validate
+    for i in items:
+        if not (0 <= i.weekday <= 6):
+            raise HTTPException(status_code=400, detail="weekday fuera de rango")
+        if i.time_from >= i.time_to:
+            raise HTTPException(status_code=400, detail="Rango horario inválido")
+    # replace all
+    old = session.exec(select(ServiceSchedule).where(ServiceSchedule.service_id == service_id)).all()
+    for o in old:
+        session.delete(o)
+    for i in items:
+        i.id = None
+        i.service_id = service_id
+        session.add(i)
+    session.commit()
+    return session.exec(select(ServiceSchedule).where(ServiceSchedule.service_id == service_id).order_by(ServiceSchedule.weekday, ServiceSchedule.time_from)).all()
+
+@router.get("/{service_id}/horarios", response_model=List[ServiceSchedule])
+def list_schedule(service_id: int, session: SessionDep):
+    return session.exec(select(ServiceSchedule).where(ServiceSchedule.service_id == service_id).order_by(ServiceSchedule.weekday, ServiceSchedule.time_from)).all()
+

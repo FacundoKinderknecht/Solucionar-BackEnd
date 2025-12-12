@@ -1,22 +1,50 @@
-from typing import Union, Annotated
-from fastapi import FastAPI, Depends
-from sqlmodel import Session
+# ------------------------------------------------------------
+# Punto de entrada de FastAPI.
+#   - Arranque de BD (lifespan)
+#   - CORS
+#   - Registro de routers (auth, servicios)
+# ------------------------------------------------------------
+from typing import Annotated
 import contextlib
 
-from database import get_session, create_db_and_tables
-from routers import servicios
+from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session
 
+from database import get_session, create_db_and_tables
+from core.config import settings
+from routers.auth import router as auth_router
+from routers.servicios import router as servicios_router
+from routers.providers import router as providers_router
+from routers.users import router as users_router
+
+# Dependencia tipada
+SessionDep = Annotated[Session, Depends(get_session)]
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Crear tablas al iniciar la app
     create_db_and_tables()
     yield
 
-SessionDep = Annotated[Session, Depends(get_session)]
 app = FastAPI(lifespan=lifespan)
 
-app.include_router(servicios.router)
+# CORS (modo dev): habilitamos orígenes configurados en settings
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+# Routers
+app.include_router(auth_router)
+app.include_router(servicios_router)
+app.include_router(providers_router)
+app.include_router(users_router)
+
+# Healthcheck / demo
 @app.get("/")
 async def root():
     return {"message": "Test API"}
