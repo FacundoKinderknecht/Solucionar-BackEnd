@@ -38,8 +38,6 @@ class Service(SQLModel, table=True):
     price_to_agree: bool = Field(default=False)  # "Precio a convenir"
     active: bool = Field(default=True)
     created_at: datetime | None = Field(default_factory=datetime.utcnow)
-
-    # Nuevos campos de disponibilidad
     availability_start_date: date | None = Field(default=None)
     availability_end_date: date | None = Field(default=None)
 
