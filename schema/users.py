@@ -1,10 +1,15 @@
 from __future__ import annotations
-
-# models/user.py
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, List, Annotated
 from datetime import datetime
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy.orm import relationship
+from sqlalchemy import Column
+from sqlalchemy import Enum as SQLEnum
 from core.enums import Role
+
+if TYPE_CHECKING:
+    from .services import Service
+    from .reservations import Reservation
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -17,6 +22,20 @@ class User(SQLModel, table=True):
     province: Optional[str] = None
     city: Optional[str] = None
     is_active: bool = Field(default=True)
-    role: Role = Field(default=Role.USER)
+    # Store role as a string at the pydantic level but use a SQLAlchemy
+    # Enum column so the DB keeps enum values. Using `str` here avoids
+    # SQLModel trying to inspect a forward-ref/string annotation.
+    role: str = Field(default=Role.USER.value, sa_column=Column(SQLEnum(Role, name="role_enum")))
     created_at: datetime | None = Field(default_factory=datetime.utcnow)
+
     # Nota: relación inversa con ProviderProfile se gestiona desde ProviderProfile.user_id
+    
+    # Relationships
+    services_provided: Annotated[List["Service"], Relationship(back_populates="provider")] = Relationship(
+        back_populates="provider",
+        sa_relationship=relationship("Service", back_populates="provider"),
+    )
+    reservations: Annotated[List["Reservation"], Relationship(back_populates="client")] = Relationship(
+        back_populates="client",
+        sa_relationship=relationship("Reservation", back_populates="client"),
+    )

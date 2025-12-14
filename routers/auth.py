@@ -4,6 +4,7 @@
 #   - POST /auth/login     
 #   - GET  /auth/me        
 # ------------------------------------------------------------
+from __future__ import annotations
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
