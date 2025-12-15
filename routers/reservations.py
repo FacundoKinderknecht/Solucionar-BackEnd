@@ -72,7 +72,16 @@ def get_my_reservations(session: SessionDep, current_user: CurrentUser):
     """
     statement = select(Reservation).where(Reservation.client_id == current_user.id)
     reservations = session.exec(statement.order_by(Reservation.reservation_datetime.desc())).all()
-    return reservations
+    # build response objects (do not assign Pydantic models to ORM relationship attributes)
+    from schema.reservations import ServicePublic, ReservationPublic
+    out: list[ReservationPublic] = []
+    for r in reservations:
+        svc = session.get(Service, r.service_id)
+        svc_data = ServicePublic.model_validate(svc).model_dump() if svc is not None else None
+        res_data = r.model_dump() if hasattr(r, 'model_dump') else r.__dict__
+        res_data['service'] = svc_data
+        out.append(ReservationPublic.model_validate(res_data))
+    return out
 
 
 @router.get("/provider-reservations", response_model=List[ReservationPublic])
@@ -95,4 +104,12 @@ def get_provider_reservations(session: SessionDep, current_user: CurrentUser):
 
     statement = select(Reservation).where(Reservation.service_id.in_(provider_services_ids))
     reservations = session.exec(statement.order_by(Reservation.reservation_datetime.desc())).all()
-    return reservations
+    from schema.reservations import ServicePublic, ReservationPublic
+    out: list[ReservationPublic] = []
+    for r in reservations:
+        svc = session.get(Service, r.service_id)
+        svc_data = ServicePublic.model_validate(svc).model_dump() if svc is not None else None
+        res_data = r.model_dump() if hasattr(r, 'model_dump') else r.__dict__
+        res_data['service'] = svc_data
+        out.append(ReservationPublic.model_validate(res_data))
+    return out

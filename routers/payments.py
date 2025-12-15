@@ -31,8 +31,7 @@ def create_payment(payload: PaymentCreate, session: SessionDep, current_user: Cu
     The payment stores the reservation intent (`service_id`, `reservation_datetime`, `notes`) and the `client_id`.
     """
     # validate service exists and is active
-    service = session.get(Reservation.__annotations__.get('service_id', Reservation))
-    # Instead of the dynamic hack above, explicitly validate service via Service model
+    # Explicitly validate service via Service model
     from schema.services import Service
 
     service = session.get(Service, payload.service_id) if payload.service_id else None

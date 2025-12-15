@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Optional
 from enum import Enum
 
 from sqlmodel import Field, SQLModel, Relationship
@@ -56,3 +56,14 @@ class ReservationPublic(ReservationBase):
     client_id: int
     status: ReservationStatus
     created_at: datetime
+    # include nested service details when returning reservations
+    service: Optional["ServicePublic"] = None
+
+
+# Lightweight public service schema to avoid importing full Service model here
+class ServicePublic(SQLModel):
+    id: int
+    title: str
+    price: float
+    currency: str
+    duration_min: int
