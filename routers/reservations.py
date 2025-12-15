@@ -4,7 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from database import get_session
-from schema.reservations import Reservation, ReservationCreate, ReservationPublic
+from schema.reservations import (
+    Reservation,
+    ReservationCreate,
+    ReservationPublic,
+    ReservationStatus,
+    ReservationStatusUpdate,
+)
+from schema.reviews import ReservationReview, ReservationReviewPublic
 from schema.services import Service
 from schema.users import User
 from core.enums import Role
@@ -71,7 +78,7 @@ def get_my_reservations(session: SessionDep, current_user: CurrentUser):
     """
     statement = select(Reservation).where(Reservation.client_id == current_user.id)
     reservations = session.exec(statement.order_by(Reservation.reservation_datetime.desc())).all()
-    return reservations
+    return _hydrate_reviews(reservations, session)
 
 
 @router.get("/provider-reservations", response_model=List[ReservationPublic])
@@ -94,4 +101,82 @@ def get_provider_reservations(session: SessionDep, current_user: CurrentUser):
 
     statement = select(Reservation).where(Reservation.service_id.in_(provider_services_ids))
     reservations = session.exec(statement.order_by(Reservation.reservation_datetime.desc())).all()
-    return reservations
+    return _hydrate_reviews(reservations, session)
+
+
+FINAL_STATUSES = {
+    ReservationStatus.CANCELLED_BY_CLIENT,
+    ReservationStatus.CANCELLED_BY_PROVIDER,
+    ReservationStatus.COMPLETED,
+}
+
+
+def _hydrate_reviews(reservations: List[Reservation], session: Session) -> List[ReservationPublic]:
+    if not reservations:
+        return []
+    reservation_ids = [reservation.id for reservation in reservations]
+    review_stmt = select(ReservationReview).where(ReservationReview.reservation_id.in_(reservation_ids))
+    reviews = session.exec(review_stmt).all()
+    review_map = {review.reservation_id: review for review in reviews}
+
+    payloads: List[ReservationPublic] = []
+    for reservation in reservations:
+        payload = ReservationPublic.model_validate(reservation, from_attributes=True)
+        review = review_map.get(reservation.id)
+        if review:
+            payload.review = ReservationReviewPublic.model_validate(review, from_attributes=True)
+        payloads.append(payload)
+    return payloads
+
+
+@router.patch("/{reservation_id}/status", response_model=ReservationPublic)
+def update_reservation_status(
+    reservation_id: int,
+    payload: ReservationStatusUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    reservation = session.get(Reservation, reservation_id)
+    if not reservation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reserva no encontrada",
+        )
+
+    if reservation.status in FINAL_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La reserva ya fue finalizada y no admite cambios.",
+        )
+
+    new_status = payload.status
+
+    if new_status == ReservationStatus.CANCELLED_BY_CLIENT:
+        if reservation.client_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo el cliente puede cancelar esta reserva.",
+            )
+    elif new_status in (ReservationStatus.CANCELLED_BY_PROVIDER, ReservationStatus.COMPLETED):
+        if current_user.role != Role.PROVIDER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo el proveedor puede realizar esta acción.",
+            )
+        service = session.get(Service, reservation.service_id)
+        if not service or service.provider_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permisos sobre esta reserva.",
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Estado solicitado no soportado.",
+        )
+
+    reservation.status = new_status
+    session.add(reservation)
+    session.commit()
+    session.refresh(reservation)
+    return reservation

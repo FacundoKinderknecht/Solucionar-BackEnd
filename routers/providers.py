@@ -2,11 +2,15 @@ from __future__ import annotations
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
+from sqlalchemy import func
 
 from routers.auth import get_current_user, SessionDep
 from schema.users import User
 from schema.auth import ProviderUpsertRequest, ProviderPublic
 from schema.providers import ProviderProfile
+from schema.services import Service
+from schema.reservations import Reservation, ReservationStatus
+from schema.reviews import ReservationReview
 from core.enums import Role, CATEGORY_CHOICES, SERVICE_AREA_CHOICES
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -33,17 +37,56 @@ def provider_dashboard(current_user: Annotated[User, Depends(get_current_user)],
     profile = session.exec(select(ProviderProfile).where(ProviderProfile.user_id == current_user.id)).first()
     if not profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No sos proveedor activo")
+
+    services_published = int(
+        session.exec(
+            select(func.count())
+            .select_from(Service)
+            .where(Service.provider_id == current_user.id, Service.active == True)  # noqa: E712
+        ).one()[0]
+    )
+
+    reservations_total = int(
+        session.exec(
+            select(func.count())
+            .select_from(Reservation)
+            .join(Service, Reservation.service_id == Service.id)
+            .where(Service.provider_id == current_user.id)
+        ).one()[0]
+    )
+
+    reservations_completed = int(
+        session.exec(
+            select(func.count())
+            .select_from(Reservation)
+            .join(Service, Reservation.service_id == Service.id)
+            .where(
+                Service.provider_id == current_user.id,
+                Reservation.status == ReservationStatus.COMPLETED,
+            )
+        ).one()[0]
+    )
+
+    rating_row = session.exec(
+        select(func.avg(ReservationReview.rating), func.count(ReservationReview.id))
+        .select_from(ReservationReview)
+        .join(Service, ReservationReview.service_id == Service.id)
+        .where(Service.provider_id == current_user.id)
+    ).one()
+    rating_average = float(rating_row[0]) if rating_row[0] is not None else 0.0
+    rating_count = int(rating_row[1]) if rating_row[1] is not None else 0
+
     return {
         "provider_id": profile.id,
         "totals": {
-            "services_published": 0,
-            "reservations_total": 0,
-            "reservations_completed": 0,
+            "services_published": services_published,
+            "reservations_total": reservations_total,
+            "reservations_completed": reservations_completed,
             "favorites_count": 0,
         },
         "ratings": {
-            "average": 0.0,
-            "count": 0,
+            "average": round(rating_average, 2),
+            "count": rating_count,
         },
         "revenue": {
             "total": 0.0,

@@ -2,6 +2,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated
 from enum import Enum
+from pydantic import ConfigDict
 
 from sqlmodel import Field, SQLModel, Relationship
 from sqlalchemy.orm import relationship
@@ -10,6 +11,7 @@ from sqlalchemy.orm import relationship
 if TYPE_CHECKING:
     from .services import Service
     from .users import User
+from .reviews import ReservationReviewPublic
 
 class ReservationStatus(str, Enum):
     PENDING = "pending"
@@ -51,3 +53,10 @@ class ReservationPublic(ReservationBase):
     client_id: int
     status: ReservationStatus
     created_at: datetime
+    review: ReservationReviewPublic | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReservationStatusUpdate(SQLModel):
+    status: ReservationStatus
