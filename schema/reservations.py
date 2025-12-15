@@ -10,6 +10,7 @@ from sqlalchemy.orm import relationship
 if TYPE_CHECKING:
     from .services import Service
     from .users import User
+    from .payments import Payment
 
 class ReservationStatus(str, Enum):
     PENDING = "pending"
@@ -39,6 +40,10 @@ class Reservation(ReservationBase, table=True):
     service: Annotated["Service", Relationship(back_populates="reservations")] | None = Relationship(
         back_populates="reservations",
         sa_relationship=relationship("Service", back_populates="reservations"),
+    )
+    payments: list["Payment"] | None = Relationship(
+        back_populates="reservation",
+        sa_relationship=relationship("Payment", back_populates="reservation"),
     )
 
 # --- Schemas for API ---

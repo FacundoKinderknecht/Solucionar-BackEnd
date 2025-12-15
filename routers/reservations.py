@@ -57,11 +57,12 @@ def create_reservation(
     # - No superponer con otras reservas confirmadas para el mismo servicio/proveedor.
     # - Validar contra los `ServiceSchedule` (horarios por día de semana).
 
-    db_reservation = Reservation.model_validate(payload, update={"client_id": current_user.id})
-    session.add(db_reservation)
-    session.commit()
-    session.refresh(db_reservation)
-    return db_reservation
+    # New flow: reservations must be created only after successful payment.
+    # Direct reservation creation is disabled; instruct the client to create a payment intent instead.
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Las reservas ahora se crean solo después del pago. Crea un intent de pago en /payments/ con los datos de la reserva.",
+    )
 
 
 @router.get("/my-reservations", response_model=List[ReservationPublic])

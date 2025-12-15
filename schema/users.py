@@ -10,6 +10,7 @@ from core.enums import Role
 if TYPE_CHECKING:
     from .services import Service
     from .reservations import Reservation
+    from .payments import Payment
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -38,4 +39,8 @@ class User(SQLModel, table=True):
     reservations: Annotated[List["Reservation"], Relationship(back_populates="client")] = Relationship(
         back_populates="client",
         sa_relationship=relationship("Reservation", back_populates="client"),
+    )
+    payments: Annotated[List["Payment"], Relationship(back_populates="payer")] = Relationship(
+        back_populates="payer",
+        sa_relationship=relationship("Payment", back_populates="payer"),
     )
