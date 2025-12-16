@@ -11,6 +11,7 @@ from schema.users import User
 from routers.auth import get_current_user
 from pydantic import BaseModel
 from uuid import uuid4
+from core.payment_gateways import get_gateway_adapter
 
 router = APIRouter(
     prefix="/payments",
@@ -81,8 +82,8 @@ def initiate_payment(payment_id: int, session: SessionDep, current_user: Current
     if payment.client_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    # Mock payment URL (in real integration you'd call MercadoPago SDK/API)
-    mock_payment_url = f"https://mock.mercadopago.com/checkout?external_reference={payment.external_reference}"
+    adapter = get_gateway_adapter(payment.gateway)
+    initiation = adapter.initiate(payment)
 
     payment.estado = PaymentStatus.PENDING
     payment.actualizado_en = datetime.utcnow()
@@ -90,7 +91,11 @@ def initiate_payment(payment_id: int, session: SessionDep, current_user: Current
     session.commit()
     session.refresh(payment)
 
-    return InitiateResponse(payment_id=payment.id, payment_url=mock_payment_url, external_reference=payment.external_reference)
+    return InitiateResponse(
+        payment_id=payment.id,
+        payment_url=initiation.payment_url,
+        external_reference=initiation.external_reference,
+    )
 
 
 class GatewayCallback(BaseModel):
@@ -117,22 +122,14 @@ def gateway_callback(payload: GatewayCallback, session: SessionDep):
     if not payment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pago no encontrado")
 
-    # Update transaction id, transaction status and store raw payload
+    # Update transaction id and state via adapter
     payment.transaction_id = payload.transaction_id
     payment.actualizado_en = datetime.utcnow()
-    # map gateway status to internal transaction status
-    st = payload.status.lower()
-    if st in ("approved", "success", "approved_by_gateway"):
-        payment.transaction_status = "approved"
-        payment.estado = PaymentStatus.COMPLETED
-    elif st in ("rejected", "failed", "declined"):
-        payment.transaction_status = "rejected"
-        payment.estado = PaymentStatus.FAILED
-    elif st in ("pending", "in_process"):
-        payment.transaction_status = "pending"
-        payment.estado = PaymentStatus.PENDING
-    else:
-        payment.transaction_status = "other"
+
+    adapter = get_gateway_adapter(payment.gateway)
+    normalized = adapter.normalize_status(payload.status)
+    payment.transaction_status = normalized.transaction_status
+    payment.estado = normalized.payment_status
 
     # store entire gateway payload for audit
     if payload.raw is not None:

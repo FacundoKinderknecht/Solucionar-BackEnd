@@ -4,14 +4,12 @@
 #   - CORS
 #   - Registro de routers (auth, servicios)
 # ------------------------------------------------------------
-from typing import Annotated
 import contextlib
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session
 
-from database import get_session, create_db_and_tables
+from database import create_db_and_tables
 from core.config import settings
 from routers.auth import router as auth_router
 from routers.services import router as services_router
@@ -20,9 +18,6 @@ from routers.users import router as users_router
 from routers.reservations import router as reservations_router
 from routers.reviews import router as reviews_router
 from routers.payments import router as payments_router
-
-# Dependencia tipada
-SessionDep = Annotated[Session, Depends(get_session)]
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):

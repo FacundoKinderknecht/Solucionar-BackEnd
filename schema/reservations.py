@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated
 from enum import Enum
 from pydantic import ConfigDict
 
@@ -79,14 +79,3 @@ class ReservationPublic(ReservationBase):
 
 class ReservationStatusUpdate(SQLModel):
     status: ReservationStatus
-    # include nested service details when returning reservations
-    service: Optional["ServicePublic"] = None
-
-
-# Lightweight public service schema to avoid importing full Service model here
-class ServicePublic(SQLModel):
-    id: int
-    title: str
-    price: float
-    currency: str
-    duration_min: int
