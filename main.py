@@ -18,6 +18,7 @@ from routers.services import router as services_router
 from routers.providers import router as providers_router
 from routers.users import router as users_router
 from routers.reservations import router as reservations_router
+from routers.payments import router as payments_router
 
 # Dependencia tipada
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -45,6 +46,7 @@ app.include_router(services_router)
 app.include_router(providers_router)
 app.include_router(users_router)
 app.include_router(reservations_router)
+app.include_router(payments_router)
 
 # Healthcheck / demo
 @app.get("/")

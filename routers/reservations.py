@@ -57,11 +57,12 @@ def create_reservation(
     # - No superponer con otras reservas confirmadas para el mismo servicio/proveedor.
     # - Validar contra los `ServiceSchedule` (horarios por día de semana).
 
-    db_reservation = Reservation.model_validate(payload, update={"client_id": current_user.id})
-    session.add(db_reservation)
-    session.commit()
-    session.refresh(db_reservation)
-    return db_reservation
+    # New flow: reservations must be created only after successful payment.
+    # Direct reservation creation is disabled; instruct the client to create a payment intent instead.
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Las reservas ahora se crean solo después del pago. Crea un intent de pago en /payments/ con los datos de la reserva.",
+    )
 
 
 @router.get("/my-reservations", response_model=List[ReservationPublic])
@@ -71,7 +72,16 @@ def get_my_reservations(session: SessionDep, current_user: CurrentUser):
     """
     statement = select(Reservation).where(Reservation.client_id == current_user.id)
     reservations = session.exec(statement.order_by(Reservation.reservation_datetime.desc())).all()
-    return reservations
+    # build response objects (do not assign Pydantic models to ORM relationship attributes)
+    from schema.reservations import ServicePublic, ReservationPublic
+    out: list[ReservationPublic] = []
+    for r in reservations:
+        svc = session.get(Service, r.service_id)
+        svc_data = ServicePublic.model_validate(svc).model_dump() if svc is not None else None
+        res_data = r.model_dump() if hasattr(r, 'model_dump') else r.__dict__
+        res_data['service'] = svc_data
+        out.append(ReservationPublic.model_validate(res_data))
+    return out
 
 
 @router.get("/provider-reservations", response_model=List[ReservationPublic])
@@ -94,4 +104,12 @@ def get_provider_reservations(session: SessionDep, current_user: CurrentUser):
 
     statement = select(Reservation).where(Reservation.service_id.in_(provider_services_ids))
     reservations = session.exec(statement.order_by(Reservation.reservation_datetime.desc())).all()
-    return reservations
+    from schema.reservations import ServicePublic, ReservationPublic
+    out: list[ReservationPublic] = []
+    for r in reservations:
+        svc = session.get(Service, r.service_id)
+        svc_data = ServicePublic.model_validate(svc).model_dump() if svc is not None else None
+        res_data = r.model_dump() if hasattr(r, 'model_dump') else r.__dict__
+        res_data['service'] = svc_data
+        out.append(ReservationPublic.model_validate(res_data))
+    return out

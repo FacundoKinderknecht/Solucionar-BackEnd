@@ -7,7 +7,16 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool, create_engine
 from sqlmodel import SQLModel
 
+# Ensure project root is on sys.path so Alembic can import local packages
+import sys
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 # Import models so SQLModel metadata gets populated
+# `schema` is a local package; having project root on `sys.path` above
+# ensures these imports work when Alembic runs.
 from schema import users, providers  # noqa: F401
 
 # this is the Alembic Config object, which provides
