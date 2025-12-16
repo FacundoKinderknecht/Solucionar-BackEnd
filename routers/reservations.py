@@ -105,7 +105,7 @@ def get_provider_reservations(session: SessionDep, current_user: CurrentUser):
 
     # Obtener los IDs de todos los servicios del proveedor actual
     provider_services_ids_stmt = select(Service.id).where(Service.provider_id == current_user.id)
-    provider_services_ids = session.exec(provider_services_ids_stmt).all()
+    provider_services_ids = list(session.exec(provider_services_ids_stmt))
 
     if not provider_services_ids:
         return []

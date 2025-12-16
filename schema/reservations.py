@@ -5,13 +5,14 @@ from enum import Enum
 from pydantic import ConfigDict
 
 from sqlmodel import Field, SQLModel, Relationship
+from sqlalchemy import Column, Enum as SAEnum
 from sqlalchemy.orm import relationship
+from .reviews import ReservationReviewPublic
 # use Annotated[...] with Relationship for SQLModel-friendly relationship metadata
 
 if TYPE_CHECKING:
     from .services import Service
     from .users import User
-from .reviews import ReservationReviewPublic
     from .payments import Payment
 
 class ReservationStatus(str, Enum):
@@ -31,7 +32,20 @@ class Reservation(ReservationBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     client_id: int = Field(foreign_key="users.id", index=True)
-    status: ReservationStatus = Field(default=ReservationStatus.PENDING, index=True)
+    status: ReservationStatus = Field(
+        default=ReservationStatus.PENDING,
+        sa_column=Column(
+            SAEnum(
+                ReservationStatus,
+                name="reservationstatus",
+                native_enum=True,
+                values_callable=lambda enum_cls: [member.value for member in enum_cls],
+            ),
+            nullable=False,
+            index=True,
+            server_default=ReservationStatus.PENDING.value,
+        ),
+    )
     created_at: datetime | None = Field(default_factory=datetime.utcnow)
 
     # Relationships

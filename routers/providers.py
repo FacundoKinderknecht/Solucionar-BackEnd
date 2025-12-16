@@ -43,7 +43,7 @@ def provider_dashboard(current_user: Annotated[User, Depends(get_current_user)],
             select(func.count())
             .select_from(Service)
             .where(Service.provider_id == current_user.id, Service.active == True)  # noqa: E712
-        ).one()[0]
+        ).one() or 0
     )
 
     reservations_total = int(
@@ -52,7 +52,7 @@ def provider_dashboard(current_user: Annotated[User, Depends(get_current_user)],
             .select_from(Reservation)
             .join(Service, Reservation.service_id == Service.id)
             .where(Service.provider_id == current_user.id)
-        ).one()[0]
+        ).one() or 0
     )
 
     reservations_completed = int(
@@ -62,9 +62,9 @@ def provider_dashboard(current_user: Annotated[User, Depends(get_current_user)],
             .join(Service, Reservation.service_id == Service.id)
             .where(
                 Service.provider_id == current_user.id,
-                Reservation.status == ReservationStatus.COMPLETED,
+                Reservation.status == ReservationStatus.COMPLETED.value,
             )
-        ).one()[0]
+        ).one() or 0
     )
 
     rating_row = session.exec(
