@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Optional
 from enum import Enum
 from pydantic import ConfigDict
 
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .services import Service
     from .users import User
 from .reviews import ReservationReviewPublic
+    from .payments import Payment
 
 class ReservationStatus(str, Enum):
     PENDING = "pending"
@@ -42,6 +43,10 @@ class Reservation(ReservationBase, table=True):
         back_populates="reservations",
         sa_relationship=relationship("Service", back_populates="reservations"),
     )
+    payments: list["Payment"] | None = Relationship(
+        back_populates="reservation",
+        sa_relationship=relationship("Payment", back_populates="reservation"),
+    )
 
 # --- Schemas for API ---
 
@@ -60,3 +65,14 @@ class ReservationPublic(ReservationBase):
 
 class ReservationStatusUpdate(SQLModel):
     status: ReservationStatus
+    # include nested service details when returning reservations
+    service: Optional["ServicePublic"] = None
+
+
+# Lightweight public service schema to avoid importing full Service model here
+class ServicePublic(SQLModel):
+    id: int
+    title: str
+    price: float
+    currency: str
+    duration_min: int
